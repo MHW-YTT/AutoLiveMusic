@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>OBS Music Player</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: rgba(0, 0, 0, 0); 
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        }
+
+        /* 点击开始提示层 */
+        #start-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 100;
+        }
+        #start-overlay.hidden { display: none; }
+
+        /* === 通知框样式 (精确参数) === */
+        #toast {
+            position: fixed;
+            top: 50px;          
+            right: 50px;
+            min-width: 550px;     
+            max-width: 800px;     
+            padding: 30px 45px;   /* 保持合适的内边距 */
+            
+            /* 核心修改：透明度 75% (0.75) */
+            background: rgba(0, 0, 0, 0.8); 
+            backdrop-filter: blur(12px); 
+            border-radius: 15px;
+            color: white;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 30px;           
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            
+            transform: translateX(800px); 
+            opacity: 0;
+            transition: transform 0.7s cubic-bezier(0.18, 0.89, 0.32, 1.28), 
+                        opacity 0.7s ease;
+        }
+
+        #toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .icon { 
+            font-size: 45px;     /* 精确调整：图标 50px */
+            opacity: 0.9; 
+            flex-shrink: 0; 
+        }
+        
+        .info { 
+            flex-grow: 1; 
+            overflow: hidden; 
+        }
+        
+        .title {
+            font-weight: 600; 
+            font-size: 32px;     /* 精确调整：歌名 32px */
+            margin-bottom: 10px; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis;
+        }
+        
+        .status { 
+            font-size: 20px;     /* 状态文字保持协调 */
+            color: rgba(255, 255, 255, 0.8); 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 点击开始层 -->
+    <div id="start-overlay">
+        <div style="text-align:center">
+            ▶️ 点击此处开始播放<br>
+            <span style="font-size:14px; opacity:0.7">(歌名32px / 图标50px / 透明度75%)</span>
+        </div>
+    </div>
+
+    <audio id="player"></audio>
+
+    <div id="toast">
+        <div class="icon">🎵</div>
+        <div class="info">
+            <div class="title" id="song-name">正在加载...</div>
+            <div class="status">正在播放</div>
+        </div>
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const toast = document.getElementById('toast');
+        const songNameEl = document.getElementById('song-name');
+        const overlay = document.getElementById('start-overlay');
+
+        let playlist = [];
+        let currentIndex = -1; 
+        let hideTimeout = null;
+
+        // 1. 扫描 music 文件夹
+        window.onload = function() {
+            fetch('./music/')
+                .then(response => response.text())
+                .then(text => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
+                    const links = doc.querySelectorAll('a');
+                    
+                    const audioExts = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac'];
+                    
+                    links.forEach(link => {
+                        const href = link.getAttribute('href');
+                        if (audioExts.some(ext => href.toLowerCase().endsWith(ext))) {
+                            playlist.push('./music/' + href);
+                        }
+                    });
+
+                    console.log("扫描到的歌曲数量:", playlist.length);
+                    
+                    if (playlist.length > 0) {
+                        shufflePlaylist();
+                    } else {
+                        songNameEl.innerText = "错误: 未找到歌曲";
+                        showToast(5000);
+                    }
+                })
+                .catch(err => {
+                    console.error("读取目录失败:", err);
+                    songNameEl.innerText = "错误: 无法读取目录";
+                    showToast(5000);
+                });
+        };
+
+        // 2. 用户点击后开始播放
+        overlay.addEventListener('click', () => {
+            if (playlist.length === 0) return;
+            
+            overlay.classList.add('hidden'); 
+            playNext();
+        });
+
+        // 3. 监听播放结束 -> 自动下一首
+        player.addEventListener('ended', () => {
+            playNext();
+        });
+
+        // 4. 错误处理
+        player.addEventListener('error', () => {
+            console.error("播放错误，跳过:", player.src);
+            setTimeout(playNext, 500);
+        });
+
+        // 核心播放逻辑
+        function playNext() {
+            if (playlist.length === 0) return;
+
+            currentIndex++;
+            if (currentIndex >= playlist.length) {
+                shufflePlaylist();
+                currentIndex = 0;
+            }
+
+            const trackUrl = playlist[currentIndex];
+            player.src = trackUrl;
+            
+            songNameEl.innerText = getFileName(trackUrl);
+            
+            // 显示时长 10000毫秒 (10秒)
+            showToast(10000); 
+
+            player.play().catch(e => console.log("播放被阻止", e));
+        }
+
+        function getFileName(url) {
+            return decodeURIComponent(url.split('/').pop());
+        }
+
+        function showToast(duration) {
+            if (hideTimeout) clearTimeout(hideTimeout);
+            
+            toast.classList.remove('show');
+            void toast.offsetWidth; 
+            
+            toast.classList.add('show');
+
+            hideTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        function shufflePlaylist() {
+            for (let i = playlist.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [playlist[i], playlist[j]] = [playlist[j], playlist[i]];
+            }
+            currentIndex = -1;
+        }
+    </script>
+</body>
+</html>
