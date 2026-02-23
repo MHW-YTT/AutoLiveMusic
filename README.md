@@ -1,6 +1,6 @@
 #  AutoLiveMusic，一个适用于直播的自动音乐播放器
 
-## 启动AutoLiveMusic
+## 如何使用AutoLiveMusic
 
 **首先，请转至[下载界面](https://github.com/MHW-YTT/AutoLiveMusic/releases/tag/RC "下载界面")下载AutoLiveMusic主程序**
 
