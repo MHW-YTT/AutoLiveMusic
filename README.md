@@ -4,7 +4,7 @@
 
 **首先，请转至[下载界面](https://github.com/MHW-YTT/AutoLiveMusic/releases/tag/RC "下载界面")下载AutoLiveMusic主程序**
 
-**接着，解压文件夹，打开AutoLiveMusic目录**
+**接着，解压文件夹，打开AutoLiveMusic目录，将音乐文件放在music文件夹内**
 
 **然后运行```server.exe```，如果弹出Windows安全中心警告，点击允许访问**
 
